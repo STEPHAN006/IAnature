@@ -3,14 +3,25 @@
 import { useState, ChangeEvent, FormEvent, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Animal {
   species: string;
   count: number;
+  carnivore?: boolean;
+  worldPopulation?: number;
+  origin?: string;
+}
+
+interface Plant {
+  species: string;
+  count: number;
+  origin?: string;
 }
 
 interface AnalysisResult {
   animals: Animal[];
+  plants: Plant[];
 }
 
 export default function ImageUploader() {
@@ -19,17 +30,9 @@ export default function ImageUploader() {
   const [showCamera, setShowCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [capturedImageUrl, setCapturedImageUrl] = useState<string>("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (showCamera) {
-      startCamera();
-    }
-    return () => {
-      stopCamera();
-    };
-  }, [showCamera]);
 
   const startCamera = async () => {
     try {
@@ -42,12 +45,35 @@ export default function ImageUploader() {
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
       }
+      setShowCamera(true);
       setCameraError("");
-    } catch (err) {
-      setCameraError("Erreur lors de l'accès à la caméra. Veuillez vérifier les permissions.");
+    } catch (error) {
+      console.error('Erreur lors de l\'accès à la caméra:', error);
+      setCameraError("Impossible d'accéder à la caméra. Veuillez vérifier les permissions.");
       setShowCamera(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showCamera) {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [showCamera]);
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (file) {
+      await analyzeImage(file);
     }
   };
 
@@ -56,54 +82,6 @@ export default function ImageUploader() {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       setShowCamera(false);
-    }
-  };
-
-  const analyzeImage = async (imageFile: File) => {
-    setIsAnalyzing(true);
-    const formData = new FormData();
-    formData.append("file", imageFile);
-    
-    try {
-      const response = await fetch("/api/gemini-image", {
-        method: "POST",
-        body: formData,
-      });
-      
-      const data = await response.json();
-      if (response.ok) {
-        try {
-          // Essayer d'abord d'extraire le JSON avec extraireJson
-          let jsonResult = extraireJson(data.analysis);
-          
-          // Si extraireJson retourne null, essayer de parser directement
-          if (!jsonResult) {
-            try {
-              jsonResult = JSON.parse(data.analysis);
-            } catch (directParseError) {
-              console.error("Erreur lors du parsing direct:", directParseError);
-            }
-          }
-          
-          if (jsonResult) {
-            setResult(jsonResult);
-          } else {
-            setResult(null);
-            console.error("Impossible d'extraire le JSON de la réponse");
-          }
-        } catch (parseError) {
-          setResult(null);
-          console.error("Erreur lors de l'analyse du JSON:", parseError);
-        }
-      } else {
-        setResult(null);
-        console.error(`Erreur: ${data.error}`);
-      }
-    } catch (error) {
-      setResult(null);
-      console.error("Erreur lors de la connexion à l'API");
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -119,8 +97,9 @@ export default function ImageUploader() {
           if (blob) {
             const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
             setFile(file);
+            const imageUrl = URL.createObjectURL(blob);
+            setCapturedImageUrl(imageUrl);
             stopCamera();
-            // Analyser automatiquement l'image capturée
             analyzeImage(file);
           }
         }, 'image/jpeg', 0.95);
@@ -128,22 +107,30 @@ export default function ImageUploader() {
     }
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
-      // Analyser automatiquement l'image sélectionnée
-      analyzeImage(selectedFile);
-    }
-  };
+  const analyzeImage = async (file: File) => {
+    setIsAnalyzing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!file) {
-      alert("Veuillez sélectionner une image ou prendre une photo.");
-      return;
+      const response = await fetch('/api/gemini-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de l\'analyse de l\'image');
+      }
+
+      const data = await response.json();
+      const analysis = extraireJson(data.analysis);
+      setResult(analysis);
+    } catch (error) {
+      console.error('Erreur:', error);
+      setResult(null);
+    } finally {
+      setIsAnalyzing(false);
     }
-    analyzeImage(file);
   };
 
   return (
@@ -225,40 +212,130 @@ export default function ImageUploader() {
         </div>
       )}
 
-{result && (
-  <div className="mt-10 px-4 py-6 bg-gray-50 rounded-lg shadow-lg">
-    <h2 className="text-3xl font-bold text-center mb-6">Résultat de l'analyse</h2>
-    
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {result.animals.map((animal, index) => (
-        <Card
-          key={index}
-          className="overflow-hidden rounded-xl hover:shadow-2xl transition-shadow duration-300"
-        >
-          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-700 p-4 text-white">
-            <CardTitle className="flex items-center justify-between text-xl font-semibold">
-              <span className="capitalize">{animal.species}</span>
-              <Badge
-                variant="outline"
-                className="bg-white/20 text-white border-white/40 px-2 py-1 rounded-full"
-              >
-                {animal.count} {animal.count > 1 ? 'individus' : 'individu'}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-center h-28 bg-gray-100 rounded-full">
-              <span className="text-5xl">
-                {getAnimalEmoji(animal.species)}
-              </span>
+      {result && (
+        <div className="mt-10 px-4 py-6 bg-gray-50 rounded-lg shadow-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h2 className="text-2xl font-bold mb-4">Image analysée</h2>
+              {capturedImageUrl && (
+                <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                  <img 
+                    src={capturedImageUrl} 
+                    alt="Image capturée" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  </div>
-)}
-
+            <div>
+              <h2 className="text-3xl font-bold text-center mb-6">Résultat de l'analyse</h2>
+              
+              <Tabs defaultValue="animals" className="w-full">
+                <TabsList className="grid grid-cols-2 mb-6">
+                  <TabsTrigger value="animals" className="text-lg">
+                    Animaux ({result.animals.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="plants" className="text-lg">
+                    Plantes ({result.plants?.length || 0})
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="animals">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {result.animals.map((animal, index) => (
+                      <Card
+                        key={index}
+                        className="overflow-hidden rounded-xl hover:shadow-2xl transition-shadow duration-300"
+                      >
+                        <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-700 p-4 text-white">
+                          <CardTitle className="flex items-center justify-between text-xl font-semibold">
+                            <span className="capitalize">{animal.species}</span>
+                            <Badge
+                              variant="outline"
+                              className="bg-white/20 text-white border-white/40 px-2 py-1 rounded-full"
+                            >
+                              {animal.count} {animal.count > 1 ? 'individus' : 'individu'}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-center h-28 bg-gray-100 rounded-full mb-4">
+                            <span className="text-5xl">
+                              {getAnimalEmoji(animal.species)}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2 text-sm">
+                            {animal.carnivore !== undefined && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">Régime alimentaire:</span>
+                                <Badge variant={animal.carnivore ? "destructive" : "default"}>
+                                  {animal.carnivore ? "Carnivore" : "Herbivore"}
+                                </Badge>
+                              </div>
+                            )}
+                            
+                            {animal.worldPopulation !== undefined && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">Population mondiale:</span>
+                                <span className="font-medium">
+                                  {animal.worldPopulation.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {animal.origin !== undefined && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">Origine:</span>
+                                <span className="font-medium">{animal.origin}</span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="plants">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {result.plants?.map((plant, index) => (
+                      <Card
+                        key={index}
+                        className="overflow-hidden rounded-xl hover:shadow-2xl transition-shadow duration-300"
+                      >
+                        <CardHeader className="bg-gradient-to-r from-green-500 to-emerald-700 p-4 text-white">
+                          <CardTitle className="flex items-center justify-between text-xl font-semibold">
+                            <span className="capitalize">{plant.species}</span>
+                            <Badge
+                              variant="outline"
+                              className="bg-white/20 text-white border-white/40 px-2 py-1 rounded-full"
+                            >
+                              {plant.count} {plant.count > 1 ? 'individus' : 'individu'}
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-center h-28 bg-gray-100 rounded-full">
+                            <span className="text-5xl">
+                              {getPlantEmoji(plant.species)}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                    
+                    {(!result.plants || result.plants.length === 0) && (
+                      <div className="col-span-full text-center py-8 text-gray-500">
+                        Aucune plante détectée dans l'image
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -368,6 +445,146 @@ function getAnimalEmoji(species: string): string {
 
   // 3. Retour par défaut si aucune correspondance n'a été trouvée
   return '🐾';
+}
+
+// Fonction pour obtenir l'emoji correspondant à la plante
+function getPlantEmoji(species: string): string {
+  const emojiMap: Record<string, string> = {
+    'arbre': '🌳',
+    'palmier': '🌴',
+    'cactus': '🌵',
+    'rose': '🌹',
+    'tulipe': '🌷',
+    'tournesol': '🌻',
+    'fleur': '🌸',
+    'lotus': '🪷',
+    'bambou': '🎋',
+    'feuille': '🍃',
+    'herbe': '🌿',
+    'trèfle': '☘️',
+    'mousse': '🍀',
+    'champignon': '🍄',
+    'blé': '🌾',
+    'riz': '🌾',
+    'maïs': '🌽',
+    'carotte': '🥕',
+    'brocoli': '🥦',
+    'salade': '🥬',
+    'épinard': '🥬',
+    'chou': '🥬',
+    'aubergine': '🍆',
+    'tomate': '🍅',
+    'citrouille': '🎃',
+    'courge': '🎃',
+    'poivron': '🫑',
+    'piment': '🌶️',
+    'ail': '🧄',
+    'oignon': '🧅',
+    'patate': '🥔',
+    'pomme de terre': '🥔',
+    'patate douce': '🍠',
+    'ananas': '🍍',
+    'banane': '🍌',
+    'pomme': '🍎',
+    'poire': '🍐',
+    'orange': '🍊',
+    'mandarine': '🍊',
+    'citron': '🍋',
+    'lime': '🍋',
+    'pastèque': '🍉',
+    'melon': '🍈',
+    'raisin': '🍇',
+    'fraise': '🍓',
+    'framboise': '🫐',
+    'myrtille': '🫐',
+    'mûre': '🫐',
+    'cerise': '🍒',
+    'pêche': '🍑',
+    'abricot': '🍑',
+    'mangue': '🥭',
+    'kiwi': '🥝',
+    'coco': '🥥',
+    'avocat': '🥑',
+    'olive': '🫒',
+    'noix': '🌰',
+    'amande': '🌰',
+    'noisette': '🌰',
+    'cacahuète': '🥜',
+    'arachide': '🥜',
+    'café': '☕',
+    'thé': '🍵',
+    'cacao': '🍫',
+    'chocolat': '🍫',
+    'sucre': '🧁',
+    'vanille': '🍦',
+    'cannelle': '🍯',
+    'miel': '🍯',
+    'algue': '🌊',
+    'corail': '🪸',
+    'lichen': '🍃',
+    'fougère': '🌿',
+    'orchidée': '🌸',
+    'lily': '💐',
+    'lys': '💐',
+    'pivoine': '💐',
+    'dahlia': '💐',
+    'chrysanthème': '💐',
+    'lierre': '🌿',
+    'houx': '🌿',
+    'if': '🌲',
+    'sapin': '🌲',
+    'pin': '🌲',
+    'épicéa': '🌲',
+    'mélèze': '🌲',
+    'cyprès': '🌲',
+    'thuya': '🌲',
+    'genévrier': '🌲',
+    'eucalyptus': '🌲',
+    'bouleau': '🌳',
+    'hêtre': '🌳',
+    'chêne': '🌳',
+    'châtaignier': '🌳',
+    'noyer': '🌳',
+    'érable': '🌳',
+    'tilleul': '🌳',
+    'frêne': '🌳',
+    'orme': '🌳',
+    'merisier': '🌳',
+    'cerisier': '🌳',
+    'prunier': '🌳',
+    'pommier': '🌳',
+    'poirier': '🌳',
+    'abricotier': '🌳',
+    'pêcher': '🌳',
+    'figuier': '🌳',
+    'olivier': '🌳',
+    'amandier': '🌳',
+    'noisetier': '🌳',
+    'cognassier': '🌳',
+    'grenadier': '🌳',
+    'kaki': '🌳',
+    'plaqueminier': '🌳',
+    'mûrier': '🌳',
+    'ronce': '🌿',
+    'framboisier': '🌿',
+    'groseillier': '🌿',
+    'cassis': '🌿',
+    'myrtillier': '🌿',
+    'airelle': '🌿',
+    'canneberge': '🌿',
+    'vigne': '🍇'
+  };
+  
+  const speciesLower = species.toLowerCase();
+  if (emojiMap[speciesLower]) {
+    return emojiMap[speciesLower];
+  }
+  for (const key in emojiMap) {
+    if (speciesLower.includes(key)) {
+      return emojiMap[key];
+    }
+  }
+  return '🌱'; // Emoji par défaut pour les plantes
 }
 
 // Fonction pour extraire le JSON d'une chaîne

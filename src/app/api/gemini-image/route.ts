@@ -26,26 +26,29 @@ export async function POST(request: Request) {
     };
 
     // Génération du prompt pour l'analyse de l'image
-    const prompt = `Analyse l'image fournie et identifie tous les animaux et toutes les plantes qui y apparaissent. Pour chaque espèce détectée, détermine le nombre d'individus présents dans l'image. Pour les animaux, en plus du nombre détecté, fournis les informations suivantes lorsqu'elles sont disponibles : s'il s'agit d'un carnivore ou non, une estimation du nombre total d'individus dans le monde, et éventuellement d'autres informations pertinentes. Réponds uniquement en renvoyant un objet JSON respectant le schéma suivant :
+    const prompt = `Analyse l'image fournie et identifie tous les animaux et toutes les plantes qui y apparaissent. Pour chaque espèce détectée, détermine le nombre d'individus présents dans l'image. Pour les animaux, en plus du nombre détecté, fournis les informations suivantes lorsqu'elles sont disponibles : s'il s'agit d'un carnivore ou non, une estimation du nombre total d'individus dans le monde, l'origine (par exemple, le continent ou la région d'origine) et éventuellement d'autres informations pertinentes. Pour les plantes, indique également leur origine si disponible. Réponds uniquement en renvoyant un objet JSON respectant le schéma suivant :
     {
       "animals": [
         {
           "species": "nom commun de l'animal",
           "count": nombre d'individus détectés,
           "carnivore": true/false,
-          "worldPopulation": estimation du nombre dans le monde
+          "worldPopulation": estimation du nombre dans le monde,
+          "origin": "origine de l'animal" // ex: 'Afrique', 'Asie', etc.
           // autres informations éventuelles si disponibles
         }
       ],
       "plants": [
         {
           "species": "nom commun de la plante",
-          "count": nombre d'individus détectés
+          "count": nombre d'individus détectés,
+          "origin": "origine de la plante" // ex: 'Amérique du Sud', 'Méditerranée', etc.
         }
       ]
     }
     
     Ne renvoie aucun texte explicatif, juste le JSON. Assure-toi que la réponse est un JSON valide.`;
+    
     
     
 
