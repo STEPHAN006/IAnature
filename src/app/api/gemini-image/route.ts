@@ -26,17 +26,28 @@ export async function POST(request: Request) {
     };
 
     // Génération du prompt pour l'analyse de l'image
-    const prompt = `Analyse l'image fournie et identifie tous les animaux qui y apparaissent. Pour chaque espèce détectée, détermine le nombre d'individus présents dans l'image. Réponds uniquement en renvoyant un objet JSON respectant le schéma suivant :
-{
-  "animals": [
+    const prompt = `Analyse l'image fournie et identifie tous les animaux et toutes les plantes qui y apparaissent. Pour chaque espèce détectée, détermine le nombre d'individus présents dans l'image. Pour les animaux, en plus du nombre détecté, fournis les informations suivantes lorsqu'elles sont disponibles : s'il s'agit d'un carnivore ou non, une estimation du nombre total d'individus dans le monde, et éventuellement d'autres informations pertinentes. Réponds uniquement en renvoyant un objet JSON respectant le schéma suivant :
     {
-      "species": "nom commun de l'animal",
-      "count": nombre d'individus détectés
+      "animals": [
+        {
+          "species": "nom commun de l'animal",
+          "count": nombre d'individus détectés,
+          "carnivore": true/false,
+          "worldPopulation": estimation du nombre dans le monde
+          // autres informations éventuelles si disponibles
+        }
+      ],
+      "plants": [
+        {
+          "species": "nom commun de la plante",
+          "count": nombre d'individus détectés
+        }
+      ]
     }
-  ]
-}
-
-Ne renvoie aucun texte explicatif, juste le JSON. Assure-toi que la réponse est un JSON valide.`;
+    
+    Ne renvoie aucun texte explicatif, juste le JSON. Assure-toi que la réponse est un JSON valide.`;
+    
+    
 
     const result = await model.generateContent([prompt, fileData]);
 

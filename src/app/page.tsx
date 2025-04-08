@@ -1,10 +1,21 @@
 "use client";
 
 import { useState, ChangeEvent, FormEvent, useRef, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+interface Animal {
+  species: string;
+  count: number;
+}
+
+interface AnalysisResult {
+  animals: Animal[];
+}
 
 export default function ImageUploader() {
   const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -61,12 +72,36 @@ export default function ImageUploader() {
       
       const data = await response.json();
       if (response.ok) {
-        setResult(data.analysis);
+        try {
+          // Essayer d'abord d'extraire le JSON avec extraireJson
+          let jsonResult = extraireJson(data.analysis);
+          
+          // Si extraireJson retourne null, essayer de parser directement
+          if (!jsonResult) {
+            try {
+              jsonResult = JSON.parse(data.analysis);
+            } catch (directParseError) {
+              console.error("Erreur lors du parsing direct:", directParseError);
+            }
+          }
+          
+          if (jsonResult) {
+            setResult(jsonResult);
+          } else {
+            setResult(null);
+            console.error("Impossible d'extraire le JSON de la réponse");
+          }
+        } catch (parseError) {
+          setResult(null);
+          console.error("Erreur lors de l'analyse du JSON:", parseError);
+        }
       } else {
-        setResult(`Erreur: ${data.error}`);
+        setResult(null);
+        console.error(`Erreur: ${data.error}`);
       }
     } catch (error) {
-      setResult("Erreur lors de la connexion à l'API");
+      setResult(null);
+      console.error("Erreur lors de la connexion à l'API");
     } finally {
       setIsAnalyzing(false);
     }
@@ -112,7 +147,7 @@ export default function ImageUploader() {
   };
 
   return (
-    <div className="min-h-screen p-8 max-w-2xl mx-auto">
+    <div className="min-h-screen p-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Analyse d'images avec Gemini</h1>
       
       {showCamera ? (
@@ -190,12 +225,187 @@ export default function ImageUploader() {
         </div>
       )}
 
-      {result && (
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <h2 className="text-xl font-semibold mb-2">Résultat de l'analyse :</h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{result}</p>
-        </div>
-      )}
+{result && (
+  <div className="mt-10 px-4 py-6 bg-gray-50 rounded-lg shadow-lg">
+    <h2 className="text-3xl font-bold text-center mb-6">Résultat de l'analyse</h2>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {result.animals.map((animal, index) => (
+        <Card
+          key={index}
+          className="overflow-hidden rounded-xl hover:shadow-2xl transition-shadow duration-300"
+        >
+          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-700 p-4 text-white">
+            <CardTitle className="flex items-center justify-between text-xl font-semibold">
+              <span className="capitalize">{animal.species}</span>
+              <Badge
+                variant="outline"
+                className="bg-white/20 text-white border-white/40 px-2 py-1 rounded-full"
+              >
+                {animal.count} {animal.count > 1 ? 'individus' : 'individu'}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center h-28 bg-gray-100 rounded-full">
+              <span className="text-5xl">
+                {getAnimalEmoji(animal.species)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  </div>
+)}
+
     </div>
   );
+}
+
+// Fonction pour obtenir l'emoji correspondant à l'animal
+function getAnimalEmoji(species: string): string {
+  const emojiMap: Record<string, string> = {
+    'girafe': '🦒',
+    'zèbre': '🦓',
+    'éléphant': '🐘',
+    'lion': '🦁',
+    'tigre': '🐯',
+    'rhinocéros': '🦏',
+    'chat': '🐱',
+    'chien': '🐕',
+    'oiseau': '🐦',
+    'poisson': '🐠',
+    'serpent': '🐍',
+    'singe': '🐒',
+    'panda': '🐼',
+    'koala': '🐨',
+    'kangourou': '🦘',
+    'hippopotame': '🦛',
+    'crocodile': '🐊',
+    'pingouin': '🐧',
+    'dauphin': '🐬',
+    'baleine': '🐋',
+    'requin': '🦈',
+    'tortue': '🐢',
+    'grenouille': '🐸',
+    'souris': '🐭',
+    'hamster': '🐹',
+    'lapin': '🐰',
+    'renard': '🦊',
+    'ours': '🐻',
+    'loup': '🐺',
+    'vache': '🐮',
+    'mouton': '🐑',
+    'chèvre': '🐐',
+    'cochon': '🐷',
+    'poule': '🐔',
+    'canard': '🦆',
+    'dinde': '🦃',
+    'perroquet': '🦜',
+    'hibou': '🦉',
+    'aigle': '🦅',
+    'faucon': '🦅',
+    'colombe': '🕊️',
+    'paon': '🦚',
+    'flamant': '🦩',
+    'autruche': '🦙',
+    'chameau': '🐪',
+    'llama': '🦙',
+    'alpaga': '🦙',
+    'écureuil': '🐿️',
+    'castor': '🦫',
+    'tatou': '🦔',
+    'hérisson': '🦔',
+    'porc-épic': '🦔',
+    'morse': '🦭',
+    'otarie': '🦭',
+    'phoque': '🦭',
+    'loutre': '🦦',
+    'belette': '🦦',
+    'furet': '🦦',
+    'blaireau': '🦦',
+    'raton laveur': '🦝',
+    'mouffette': '🦨',
+    'bison': '🦬',
+    'buffle': '🦬',
+    'antilope': '🦌',
+    'cerf': '🦌',
+    'chevreuil': '🦌',
+    'daim': '🦌',
+    'élan': '🦌',
+    'renne': '🦌',
+    'chacal': '🦊',
+    'coyote': '🦊',
+    'dingo': '🦊',
+    'fennec': '🦊',
+    // Animaux supplémentaires
+    'hippocampe': '🐠',
+    'scorpion': '🦂',
+    'araignée': '🕷️',
+    'papillon': '🦋',
+    'abeille': '🐝',
+    'fourmi': '🐜',
+    'crabe': '🦀',
+    'ours polaire': '🐻‍❄️',
+    'loup arctique': '🐺'
+  };
+
+  // Convertir la chaîne en minuscules pour simplifier la comparaison
+  const speciesLower = species.toLowerCase();
+
+  // 1. Correspondance exacte
+  if (emojiMap[speciesLower]) {
+    return emojiMap[speciesLower];
+  }
+
+  // 2. Recherche par inclusion : par exemple, "lion blanc" inclura "lion"
+  for (const key in emojiMap) {
+    if (speciesLower.includes(key)) {
+      return emojiMap[key];
+    }
+  }
+
+  // 3. Retour par défaut si aucune correspondance n'a été trouvée
+  return '🐾';
+}
+
+// Fonction pour extraire le JSON d'une chaîne
+function extraireJson(chaine: string): any {
+  // Vérifier si la chaîne contient des délimiteurs de code Markdown
+  if (chaine.includes('```json')) {
+    // Expression régulière pour extraire le contenu JSON entre ```json et ```
+    const regex = /```json\s*([\s\S]*?)\s*```/;
+    const match = chaine.match(regex);
+    if (match) {
+      try {
+        // Conversion de la chaîne JSON en objet JavaScript
+        return JSON.parse(match[1].trim());
+      } catch (e) {
+        console.error("Erreur lors de l'analyse du JSON :", e);
+      }
+    }
+  } else if (chaine.includes('```')) {
+    // Expression régulière pour extraire le contenu entre ``` et ```
+    const regex = /```\s*([\s\S]*?)\s*```/;
+    const match = chaine.match(regex);
+    if (match) {
+      try {
+        // Conversion de la chaîne JSON en objet JavaScript
+        return JSON.parse(match[1].trim());
+      } catch (e) {
+        console.error("Erreur lors de l'analyse du JSON :", e);
+      }
+    }
+  } else {
+    // Essayer de parser directement la chaîne
+    try {
+      return JSON.parse(chaine.trim());
+    } catch (e) {
+      console.error("La chaîne n'est pas un JSON valide :", e);
+    }
+  }
+  
+  console.error("Aucun JSON valide trouvé dans la chaîne.");
+  return null;
 }
