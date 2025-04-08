@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     // Extraire le payload de la requête (ici par exemple, un prompt ou autre contenu)
     const { prompt } = await request.json();

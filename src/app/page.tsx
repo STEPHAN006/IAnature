@@ -97,6 +97,7 @@ export default function ImageUploader() {
           if (blob) {
             const file = new File([blob], "camera-capture.jpg", { type: "image/jpeg" });
             setFile(file);
+            // @ts-ignore
             const imageUrl = URL.createObjectURL(blob);
             setCapturedImageUrl(imageUrl);
             stopCamera();
